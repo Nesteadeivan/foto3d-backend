@@ -5,6 +5,7 @@ import mimetypes
 import socket
 import time
 from contextlib import asynccontextmanager
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
@@ -53,8 +54,11 @@ def require_key(x_foto3d_key: str | None = Header(default=None)) -> None:
 guard = [Depends(require_key)]
 
 
+@lru_cache(maxsize=1)
 def lan_ip() -> str:
-    """IP de esta maquina en la red local, para que el movil sepa a donde ir."""
+    """IP de esta maquina en la red local, para que el movil sepa a donde ir.
+
+    Cacheada: la llama /api/health, que debe ser instantaneo."""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.connect(("8.8.8.8", 80))
@@ -65,11 +69,13 @@ def lan_ip() -> str:
 
 @app.get("/api/health")
 def health() -> dict:
+    """Tiene que ser instantaneo: la plataforma lo llama como health check y,
+    si tarda, mata el contenedor y lo reinicia una y otra vez."""
     return {
         "ok": True,
         "providers": [PROVIDERS[n].label for n in config.PROVIDER_ORDER if n in PROVIDERS],
         "auto_naming": bool(config.HF_TOKEN),
-        "models": len(storage.list_all()),
+        "models": storage.count_quick(),
         "lan_ip": lan_ip(),
         "storage": config.STORAGE,
     }

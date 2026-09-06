@@ -150,6 +150,11 @@ def save(gen: Generation, name: str, source_image: Path | None = None) -> dict:
     return meta
 
 
+def cached_count() -> int | None:
+    """Cuantos objetos hay, SIN tocar la red. None si aun no se ha leido."""
+    return None if _index is None else len(_index)
+
+
 def list_all() -> list[dict]:
     return sorted(_load_index(), key=lambda m: m.get("created_at", 0), reverse=True)
 

@@ -82,6 +82,21 @@ def list_all() -> list[dict]:
     return sorted(items, key=lambda m: m.get("created_at", 0), reverse=True)
 
 
+def count_quick() -> int | None:
+    """Numero de objetos sin tocar la red.
+
+    Lo usa /api/health, al que la plataforma llama cada pocos segundos: si ese
+    endpoint se pone a hablar con Hugging Face, tarda, y el servicio acaba
+    reiniciandose en bucle. None significa "todavia no lo se".
+    """
+    if _in_cloud():
+        return _hf().cached_count()
+    try:
+        return sum(1 for f in config.MODELS_DIR.iterdir() if f.is_dir())
+    except Exception:
+        return None
+
+
 def get(model_id: str) -> dict | None:
     if _in_cloud():
         return _hf().get(model_id)
