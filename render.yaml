@@ -1,0 +1,23 @@
+# Despliegue en Render (capa gratuita, sin tarjeta).
+# Los valores marcados sync:false se rellenan a mano en el panel de Render,
+# para que ningun secreto acabe en el repositorio.
+services:
+  - type: web
+    name: foto3d-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: FOTO3D_STORAGE
+        value: hf
+      - key: FOTO3D_PROVIDERS
+        value: trellis-community,hunyuan3d
+      - key: FOTO3D_HF_DATASET
+        sync: false
+      - key: HF_TOKEN
+        sync: false
+      - key: FOTO3D_API_KEY
+        sync: false

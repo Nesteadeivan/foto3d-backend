@@ -1,0 +1,7 @@
+fastapi==0.118.0
+uvicorn[standard]==0.37.0
+python-multipart==0.0.20
+gradio_client==2.6.1
+pillow==11.3.0
+httpx==0.28.1
+huggingface_hub==1.30.0

@@ -1,0 +1,6 @@
+# NUNCA subir el token a ningun sitio. En la nube se pone como Secret.
+.env
+.venv/
+__pycache__/
+*.pyc
+data/
