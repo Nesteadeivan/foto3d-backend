@@ -52,6 +52,10 @@ API_KEY: str | None = os.environ.get("FOTO3D_API_KEY") or None
 #   alta        malla casi completa, textura 2048 y mas pasos de muestreo.
 QUALITY: str = os.environ.get("FOTO3D_QUALITY", "alta").strip().lower()
 
+# --- fal.ai: motor de pago, sin instalar nada ni cuotas ---
+# Se saca en https://fal.ai/dashboard/keys
+FAL_KEY: str | None = os.environ.get("FAL_KEY") or None
+
 # --- Trabajadores: PCs con GPU que se conectan hacia aqui a por trabajo ---
 # Clave que los identifica. Es distinta de FOTO3D_API_KEY (la de la app) a
 # proposito: la de la app va dentro del APK y la tiene cualquiera, mientras que
