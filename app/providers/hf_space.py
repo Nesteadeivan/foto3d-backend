@@ -20,6 +20,19 @@ from .. import config
 from .base import Generation, ProgressFn, ProviderUnavailable, QuotaExceeded
 
 _HTTPX = {"timeout": 600.0}
+
+# mesh_simplify es la PROPORCION DE MALLA QUE SE TIRA: 0.95 deja solo el 5% de
+# los poligonos, que es lo que trae la demo por defecto y por lo que los
+# modelos salian pobres. texture_size va de 512 a 2048.
+_QUALITY = {
+    "rapida": {"steps": 12, "simplify": 0.95, "texture": 1024},
+    "equilibrada": {"steps": 16, "simplify": 0.80, "texture": 2048},
+    "alta": {"steps": 25, "simplify": 0.50, "texture": 2048},
+}
+
+
+def _quality() -> dict:
+    return _QUALITY.get(config.QUALITY, _QUALITY["alta"])
 _QUOTA_RE = re.compile(r"exceeded your (?:zerogpu )?quota|gpu quota|quota exceeded", re.I)
 _RETRY_RE = re.compile(r"try again in ([0-9:]+)", re.I)
 
@@ -89,18 +102,19 @@ class TrellisCommunity:
             cutout = _as_path(client.predict(image=handle_file(str(image_path)),
                                              api_name="/preprocess_image"))
 
-            progress("Generando la malla 3D...")
+            q = _quality()
+            progress(f"Generando la malla 3D (calidad {config.QUALITY})...")
             result = client.predict(
                 image=handle_file(str(cutout or image_path)),
                 multiimages=[],
                 seed=0,
                 ss_guidance_strength=7.5,
-                ss_sampling_steps=12,
+                ss_sampling_steps=q["steps"],
                 slat_guidance_strength=3.0,
-                slat_sampling_steps=12,
+                slat_sampling_steps=q["steps"],
                 multiimage_algo="stochastic",
-                mesh_simplify=0.95,
-                texture_size=1024,
+                mesh_simplify=q["simplify"],
+                texture_size=q["texture"],
                 api_name="/generate_and_extract_glb",
             )
         except Exception as exc:

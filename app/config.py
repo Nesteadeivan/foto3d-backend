@@ -44,6 +44,14 @@ HF_DATASET: str | None = os.environ.get("FOTO3D_HF_DATASET") or None
 # encuentre la URL puede gastar tu cuota de GPU y borrarte la galeria.
 API_KEY: str | None = os.environ.get("FOTO3D_API_KEY") or None
 
+# Calidad de los modelos. Mas calidad = mas segundos de GPU = menos objetos al
+# dia mientras dependas de la cuota gratuita. En un motor local da igual: ahi
+# solo cuesta unos segundos mas de espera.
+#   rapida      malla muy simplificada y textura 1024. Lo que trae la demo.
+#   equilibrada bastante mas malla y textura 2048.
+#   alta        malla casi completa, textura 2048 y mas pasos de muestreo.
+QUALITY: str = os.environ.get("FOTO3D_QUALITY", "alta").strip().lower()
+
 # Orden en el que se prueban los motores 3D. El primero que responda, gana.
 PROVIDER_ORDER: list[str] = [
     p.strip()
