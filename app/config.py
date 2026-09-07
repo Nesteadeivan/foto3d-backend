@@ -52,6 +52,23 @@ API_KEY: str | None = os.environ.get("FOTO3D_API_KEY") or None
 #   alta        malla casi completa, textura 2048 y mas pasos de muestreo.
 QUALITY: str = os.environ.get("FOTO3D_QUALITY", "alta").strip().lower()
 
+# --- Trabajadores: PCs con GPU que se conectan hacia aqui a por trabajo ---
+# Clave que los identifica. Es distinta de FOTO3D_API_KEY (la de la app) a
+# proposito: la de la app va dentro del APK y la tiene cualquiera, mientras que
+# esta solo la conoce tu PC y da permiso para procesar trabajos.
+WORKER_KEY: str | None = os.environ.get("FOTO3D_WORKER_KEY") or None
+# Segundos que se espera a que un trabajador coja la foto antes de generarla
+# aqui con los motores de la nube. Si tu PC esta encendido la coge en 2-3 s.
+WORKER_WAIT: int = int(os.environ.get("FOTO3D_WORKER_WAIT", "20"))
+
+# --- Motor local (ComfyUI + TRELLIS 2 en tu propia GPU) ---
+COMFY_URL: str = os.environ.get("FOTO3D_COMFY_URL", "http://127.0.0.1:8188")
+COMFY_OUTPUT: Path = Path(
+    os.environ.get("FOTO3D_COMFY_OUTPUT", r"D:/IA FOTO/comfyui/salida")
+)
+# Generar en local tarda minutos, no segundos: el margen tiene que ser amplio.
+COMFY_TIMEOUT: int = int(os.environ.get("FOTO3D_COMFY_TIMEOUT", "1800"))
+
 # Orden en el que se prueban los motores 3D. El primero que responda, gana.
 PROVIDER_ORDER: list[str] = [
     p.strip()

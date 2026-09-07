@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from . import config, jobs, storage
-from .providers.hf_space import ALL as PROVIDERS
+from .providers import ALL as PROVIDERS
 
 
 @asynccontextmanager
@@ -54,6 +54,25 @@ def require_key(x_foto3d_key: str | None = Header(default=None)) -> None:
 guard = [Depends(require_key)]
 
 
+def quien(x_foto3d_user: str | None = Header(default=None)) -> str:
+    """Identifica al movil para que cada uno vea solo su galeria.
+
+    La app se inventa un identificador aleatorio la primera vez que arranca
+    y lo guarda. No es una cuenta ni pide registro: solo separa galerias.
+    """
+    limpio = (x_foto3d_user or "").strip()[:64]
+    return limpio or "anon"
+
+
+def require_worker(x_foto3d_worker: str | None = Header(default=None)) -> None:
+    """Solo tu PC puede coger trabajos y devolver modelos."""
+    if not config.WORKER_KEY or x_foto3d_worker != config.WORKER_KEY:
+        raise HTTPException(401, "Trabajador no autorizado.")
+
+
+worker_guard = [Depends(require_worker)]
+
+
 @lru_cache(maxsize=1)
 def lan_ip() -> str:
     """IP de esta maquina en la red local, para que el movil sepa a donde ir.
@@ -68,14 +87,14 @@ def lan_ip() -> str:
 
 
 @app.get("/api/health")
-def health() -> dict:
+def health(user: str = Depends(quien)) -> dict:
     """Tiene que ser instantaneo: la plataforma lo llama como health check y,
     si tarda, mata el contenedor y lo reinicia una y otra vez."""
     return {
         "ok": True,
         "providers": [PROVIDERS[n].label for n in config.PROVIDER_ORDER if n in PROVIDERS],
         "auto_naming": bool(config.HF_TOKEN),
-        "models": storage.count_quick(),
+        "models": storage.count_quick(user),
         "lan_ip": lan_ip(),
         "storage": config.STORAGE,
     }
@@ -85,7 +104,7 @@ IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".bmp")
 
 
 @app.post("/api/generate", dependencies=guard)
-async def generate(photo: UploadFile = File(...)) -> dict:
+async def generate(photo: UploadFile = File(...), user: str = Depends(quien)) -> dict:
     # El subidor nativo de expo-file-system no siempre manda content-type,
     # asi que la extension tambien vale como prueba de que es una imagen.
     content_type = (photo.content_type or "").lower()
@@ -99,8 +118,8 @@ async def generate(photo: UploadFile = File(...)) -> dict:
     dest = config.UPLOADS_DIR / f"{int(time.time() * 1000)}{suffix}"
     dest.write_bytes(await photo.read())
 
-    fallback = f"Objeto {len(storage.list_all()) + 1}"
-    job = jobs.submit(dest, fallback)
+    fallback = f"Objeto {len(storage.list_all(user)) + 1}"
+    job = jobs.submit(dest, fallback, user)
     return {"job_id": job.id, "status": job.status}
 
 
@@ -112,30 +131,30 @@ def job_status(job_id: str) -> dict:
 
 
 @app.get("/api/models", dependencies=guard)
-def list_models() -> list[dict]:
-    return storage.list_all()
+def list_models(user: str = Depends(quien)) -> list[dict]:
+    return storage.list_all(user)
 
 
 @app.get("/api/models/{model_id}", dependencies=guard)
-def get_model(model_id: str) -> dict:
-    if (meta := storage.get(model_id)) is None:
+def get_model(model_id: str, user: str = Depends(quien)) -> dict:
+    if (meta := storage.get(model_id, user)) is None:
         raise HTTPException(404, "Objeto no encontrado.")
     return meta
 
 
 @app.patch("/api/models/{model_id}", dependencies=guard)
-def rename_model(model_id: str, body: RenameBody) -> dict:
+def rename_model(model_id: str, body: RenameBody, user: str = Depends(quien)) -> dict:
     name = body.name.strip()
     if not name:
         raise HTTPException(400, "El nombre no puede estar vacio.")
-    if (meta := storage.rename(model_id, name[:60])) is None:
+    if (meta := storage.rename(model_id, name[:60], user)) is None:
         raise HTTPException(404, "Objeto no encontrado.")
     return meta
 
 
 @app.delete("/api/models/{model_id}", dependencies=guard)
-def delete_model(model_id: str) -> dict:
-    if not storage.delete(model_id):
+def delete_model(model_id: str, user: str = Depends(quien)) -> dict:
+    if not storage.delete(model_id, user):
         raise HTTPException(404, "Objeto no encontrado.")
     return {"deleted": model_id}
 
@@ -151,6 +170,59 @@ def serve_file(model_id: str, filename: str) -> FileResponse:
     if target is None or not target.is_file():
         raise HTTPException(404, "Fichero no encontrado.")
     return FileResponse(target)
+
+
+# --------------------------------------------------------------------------
+# Trabajadores: tu PC con GPU se conecta HACIA aqui y pregunta si hay trabajo.
+# Por eso no hace falta abrirle puertos, ni tunel, ni IP fija: la conexion
+# siempre sale de tu casa, nunca entra.
+# --------------------------------------------------------------------------
+
+
+class WorkerStage(BaseModel):
+    stage: str
+
+
+class WorkerError(BaseModel):
+    reason: str
+
+
+@app.post("/api/worker/claim", dependencies=worker_guard)
+def worker_claim(x_foto3d_worker_id: str | None = Header(default=None)) -> dict:
+    trabajo = jobs.claim(x_foto3d_worker_id or "worker")
+    return trabajo or {}
+
+
+@app.get("/api/worker/photo/{job_id}", dependencies=worker_guard)
+def worker_photo(job_id: str) -> FileResponse:
+    foto = jobs.worker_image(job_id)
+    if foto is None or not foto.is_file():
+        raise HTTPException(404, "Foto no disponible.")
+    return FileResponse(foto)
+
+
+@app.post("/api/worker/progress/{job_id}", dependencies=worker_guard)
+def worker_progress(job_id: str, body: WorkerStage) -> dict:
+    if not jobs.worker_progress(job_id, body.stage[:120]):
+        raise HTTPException(404, "Trabajo no encontrado.")
+    return {"ok": True}
+
+
+@app.post("/api/worker/result/{job_id}", dependencies=worker_guard)
+async def worker_result(job_id: str, model: UploadFile = File(...)) -> dict:
+    destino = config.UPLOADS_DIR / f"worker_{job_id}.glb"
+    destino.write_bytes(await model.read())
+    resultado = jobs.worker_done(job_id, destino)
+    if resultado is None:
+        raise HTTPException(404, "Trabajo no encontrado o no reclamado.")
+    return resultado
+
+
+@app.post("/api/worker/failed/{job_id}", dependencies=worker_guard)
+def worker_failed(job_id: str, body: WorkerError) -> dict:
+    # No se da por perdido: vuelve a la cola y lo intenta el motor de la nube.
+    jobs.worker_failed(job_id, body.reason)
+    return {"ok": True}
 
 
 def _banner() -> None:

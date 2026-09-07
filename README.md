@@ -58,6 +58,43 @@ un túnel (Cloudflare Tunnel o ngrok). Ventajas: la galería se queda en tu disc
 (sin token de escritura, sin límites de tamaño) y no hay esperas de arranque.
 Pega: el PC tiene que estar encendido.
 
+
+## Motor local: TRELLIS 2 en tu propia GPU
+
+Es la unica opcion que da gratis, ilimitado y buena calidad a la vez. El PC
+tiene que estar encendido.
+
+    FOTO3D_PROVIDERS=comfyui
+    FOTO3D_QUALITY=equilibrada
+
+Arranca antes ComfyUI con `D:\IA FOTO\comfyuirrancar.bat`.
+
+**Donde vive cada cosa.** El programa esta en `C:\ComfyUI-Foto3D` y no en la
+carpeta del proyecto, a proposito: `D:` esta formateado en exFAT con clusters
+de 1 MB, asi que cada fichero ocupa 1 MB minimo. Los 57.520 ficheros de
+ComfyUI (el 61% de 4 KB o menos) pasaban de 4,5 GB reales a 64 GB en disco.
+En `C:`, que es NTFS con clusters de 4 KB, ocupan 4,6 GB.
+
+Los modelos (`models\`, 9,4 GB) y las salidas (`salida\`) se quedan en
+`D:\IA FOTO\comfyui`: son ficheros grandes y ahi no se desperdicia nada.
+
+Medido en una RTX 4070 de 12 GB con el mismo objeto:
+
+| Calidad | Tiempo | Fichero | Comparado con el Space gratuito |
+|---|---|---|---|
+| `rapida` | ~2 min | ~5 MB | bastante mejor |
+| `equilibrada` | ~4 min | ~12 MB | mucho mejor, malla con 30x mas detalle |
+| `alta` | ~8 min | ~32 MB | calidad de produccion, excesivo para el movil |
+
+La primera generacion tras arrancar ComfyUI tarda unos minutos mas: hay que
+subir 11 GB de pesos del disco a la tarjeta.
+
+| Variable | Por defecto | Para que sirve |
+|---|---|---|
+| `FOTO3D_COMFY_URL` | `http://127.0.0.1:8188` | Donde escucha ComfyUI |
+| `FOTO3D_COMFY_OUTPUT` | `D:/IA FOTO/comfyui/salida` | Donde deja ComfyUI los `.glb` |
+| `FOTO3D_COMFY_TIMEOUT` | `1800` | Margen maximo, en segundos |
+
 ## Configuración
 
 Todo es opcional y tiene valores por defecto sensatos.

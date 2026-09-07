@@ -116,7 +116,8 @@ def _save_index(models: list[dict]) -> None:
         _push(payload, _INDEX, "Actualizar indice de la galeria")
 
 
-def save(gen: Generation, name: str, source_image: Path | None = None) -> dict:
+def save(gen: Generation, name: str, source_image: Path | None = None,
+         user: str = "anon") -> dict:
     ensure_repo()
     model_id = uuid.uuid4().hex[:12]
     folder = f"models/{model_id}"
@@ -141,6 +142,7 @@ def save(gen: Generation, name: str, source_image: Path | None = None) -> dict:
         "size_bytes": Path(gen.glb_path).stat().st_size,
         "has_video": has_video,
         "thumb": thumb_name,
+        "user": user,
     }
 
     with _lock:
@@ -150,13 +152,20 @@ def save(gen: Generation, name: str, source_image: Path | None = None) -> dict:
     return meta
 
 
-def cached_count() -> int | None:
+def cached_count(user: str | None = None) -> int | None:
     """Cuantos objetos hay, SIN tocar la red. None si aun no se ha leido."""
-    return None if _index is None else len(_index)
+    if _index is None:
+        return None
+    if user is None:
+        return len(_index)
+    return sum(1 for m in _index if m.get("user", "anon") == user)
 
 
-def list_all() -> list[dict]:
-    return sorted(_load_index(), key=lambda m: m.get("created_at", 0), reverse=True)
+def list_all(user: str | None = None) -> list[dict]:
+    modelos = _load_index()
+    if user is not None:
+        modelos = [m for m in modelos if m.get("user", "anon") == user]
+    return sorted(modelos, key=lambda m: m.get("created_at", 0), reverse=True)
 
 
 def get(model_id: str) -> dict | None:
